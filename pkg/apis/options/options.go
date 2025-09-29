@@ -71,6 +71,13 @@ type Options struct {
 	// This is used for backwards compatibility for basic auth users
 	LegacyPreferEmailToUser bool `cfg:",internal"`
 
+	// MQTT configuration for dynamic group loading
+	MQTTUsername           string `flag:"mqtt-username" cfg:"mqtt_username"`
+	MQTTPassword           string `flag:"mqtt-password" cfg:"mqtt_password"`
+	MQTTBroker             string `flag:"mqtt-broker" cfg:"mqtt_broker"`
+	MQTTPort               int    `flag:"mqtt-port" cfg:"mqtt_port"`
+	MQTTAllowedGroupsTopic string `flag:"mqtt-allowed-groups-topic" cfg:"mqtt_allowed_groups_topic"`
+
 	// internal values that are set after config validation
 	redirectURL        *url.URL
 	signatureData      *SignatureData
@@ -161,6 +168,13 @@ func NewFlagSet() *pflag.FlagSet {
 	flagSet.Int("redis-connection-idle-timeout", 0, "Redis connection idle timeout seconds, if Redis timeout option is non-zero, the --redis-connection-idle-timeout must be less then Redis timeout option")
 	flagSet.String("signature-key", "", "GAP-Signature request signature key (algorithm:secretkey)")
 	flagSet.Bool("gcp-healthchecks", false, "Enable GCP/GKE healthcheck endpoints")
+
+	// MQTT configuration flags
+	flagSet.String("mqtt-username", "", "MQTT username for dynamic group loading")
+	flagSet.String("mqtt-password", "", "MQTT password for dynamic group loading")
+	flagSet.String("mqtt-broker", "", "MQTT broker address for dynamic group loading")
+	flagSet.Int("mqtt-port", 1883, "MQTT broker port for dynamic group loading")
+	flagSet.String("mqtt-allowed-groups-topic", "", "MQTT topic for receiving allowed groups updates")
 
 	flagSet.AddFlagSet(cookieFlagSet())
 	flagSet.AddFlagSet(loggingFlagSet())
