@@ -1,0 +1,79 @@
+# .github/workflows/calver-release.yml
+name: CalVer Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  APP_NAME: oauth2-proxy-mqtt
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      # 1) Checkout full history (tags included)
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2) Set up Go tool-chain
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'  #
+
+      # 3) Produce a Calendar Version string
+      - name: Generate CalVer
+        id: calver
+        run: |
+          DATE_VERSION=$(date +%Y.%m.%d)
+          BUILD_NUMBER=${{ github.run_number }}
+          echo "version=${DATE_VERSION}.${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      # 4) Make and push the tag
+      - name: Create & push Git tag
+        env:
+          VERSION: ${{ steps.calver.outputs.version }}
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name  "GitHub Action"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+
+      # 5) Build Linux binary
+      - name: Build Linux binary
+        env:
+          VERSION: ${{ steps.calver.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          
+          echo "→ building ${APP_NAME} for Linux"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags "-X github.com/oauth2-proxy/oauth2-proxy/v7/pkg/version.VERSION=$VERSION -w -s" \
+            -a \
+            -o "dist/${APP_NAME}" .
+
+      # 6) Generate checksums
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum ${APP_NAME} > "${APP_NAME}_checksums.txt"
+
+      # 7) Create the Release
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.calver.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --title "OAuth2 Proxy with MQTT Support v$VERSION" \
+            --notes "Automated CalVer release with MQTT support for dynamic group updates." \
+            dist/${APP_NAME} \
+            dist/${APP_NAME}_checksums.txt
