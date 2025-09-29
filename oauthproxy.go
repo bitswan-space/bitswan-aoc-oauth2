@@ -29,12 +29,12 @@ import (
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/cookies"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/encryption"
 	proxyhttp "github.com/oauth2-proxy/oauth2-proxy/v7/pkg/http"
+	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/logger"
+	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/middleware"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/util"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/version"
 
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/ip"
-	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/logger"
-	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/middleware"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/mqtt"
 	requestutil "github.com/oauth2-proxy/oauth2-proxy/v7/pkg/requests/util"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/sessions"
@@ -114,7 +114,25 @@ type OAuthProxy struct {
 	redirectValidator redirect.Validator
 	appDirector       redirect.AppDirector
 
+	// MQTT client for dynamic group loading
+	mqttClient *mqtt.Client
+
 	encodeState bool
+}
+
+// UpdateAllowedGroups updates the allowed groups for the provider
+func (p *OAuthProxy) UpdateAllowedGroups(groups []string) {
+	if p.provider != nil {
+		// Convert groups slice to map for efficient lookups
+		allowedGroupsMap := make(map[string]struct{}, len(groups))
+		for _, group := range groups {
+			allowedGroupsMap[group] = struct{}{}
+		}
+
+		// Update the provider's AllowedGroups directly
+		p.provider.Data().AllowedGroups = allowedGroupsMap
+		logger.Printf("Updated allowed groups: %v", groups)
+	}
 }
 
 // NewOAuthProxy creates a new instance of OAuthProxy from the options provided
@@ -137,6 +155,12 @@ func NewOAuthProxy(opts *options.Options, validator func(string) bool) (*OAuthPr
 	provider, err := providers.NewProvider(opts.Providers[0])
 	if err != nil {
 		return nil, fmt.Errorf("error initialising provider: %v", err)
+	}
+
+	// Initialize MQTT client for dynamic group loading
+	var mqttClient *mqtt.Client
+	if opts.MQTTBroker != "" && opts.MQTTAllowedGroupsTopic != "" {
+		mqttClient = mqtt.NewClient(opts.MQTTBroker, opts.MQTTPort, opts.MQTTUsername, opts.MQTTPassword, opts.MQTTAllowedGroupsTopic)
 	}
 
 	pageWriter, err := pagewriter.NewWriter(pagewriter.Opts{
@@ -249,8 +273,16 @@ func NewOAuthProxy(opts *options.Options, validator func(string) bool) (*OAuthPr
 		redirectValidator:  redirectValidator,
 		appDirector:        appDirector,
 		encodeState:        opts.EncodeState,
+		mqttClient:         mqttClient,
 	}
 	p.buildServeMux(opts.ProxyPrefix)
+
+	// Set MQTT callback after OAuthProxy is created
+	if mqttClient != nil {
+		mqttClient.SetOnGroupsUpdate(func(groups []string) {
+			p.UpdateAllowedGroups(groups)
+		})
+	}
 
 	if err := p.setupServer(opts); err != nil {
 		return nil, fmt.Errorf("error setting up server: %v", err)
@@ -267,6 +299,14 @@ func (p *OAuthProxy) Start() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start MQTT client if configured
+	if p.mqttClient != nil {
+		if err := p.mqttClient.Connect(); err != nil {
+			logger.Printf("Warning: Failed to connect to MQTT broker: %v", err)
+		}
+		defer p.mqttClient.Disconnect()
+	}
 
 	// Observe signals in background goroutine.
 	go func() {
@@ -1331,3 +1371,4 @@ func LoggingCSRFCookiesInOAuthCallback(req *http.Request, cookieName string) {
 
 	logger.Println(req, logger.AuthFailure, "Cookies were found in OAuth callback, but none was a CSRF cookie.")
 }
+
