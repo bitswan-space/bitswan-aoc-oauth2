@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -15,6 +16,7 @@ type Client struct {
 	client               mqtt.Client
 	broker               string
 	port                 int
+	protocol             string 
 	username             string
 	password             string
 	topic                string
@@ -33,9 +35,12 @@ type GroupUpdate struct {
 
 // NewClient creates a new MQTT client
 func NewClient(broker string, port int, username, password, topic string) *Client {
+	protocol := "wss"
+
 	return &Client{
 		broker:               broker,
 		port:                 port,
+		protocol:             protocol,
 		username:             username,
 		password:             password,
 		topic:                topic,
@@ -56,7 +61,13 @@ func (c *Client) Connect() error {
 		return nil
 	}
 
-	brokerURL := fmt.Sprintf("tcp://%s:%d", c.broker, c.port)
+	// Build broker URL with the WebSocket path EMQX expects
+	var brokerURL string
+	if c.protocol == "ws" || c.protocol == "wss" {
+		brokerURL = fmt.Sprintf("%s://%s:%d/mqtt", c.protocol, c.broker, c.port) 
+	} else {
+		brokerURL = fmt.Sprintf("tcp://%s:%d", c.broker, c.port)
+	}
 	logger.Printf("Connecting to MQTT broker: %s", brokerURL)
 
 	opts := mqtt.NewClientOptions()
@@ -68,6 +79,11 @@ func (c *Client) Connect() error {
 		opts.SetPassword(c.password)
 	}
 
+	// TLS config for internal communication (self-signed certificate)
+	opts.SetTLSConfig(&tls.Config{InsecureSkipVerify: true})
+	logger.Printf("MQTT TLS configured (port %d, skip verify)", c.port)
+
+	// Connection behavior
 	opts.SetAutoReconnect(true)
 	opts.SetConnectRetry(true)
 	opts.SetConnectRetryInterval(c.reconnectInterval)
@@ -79,26 +95,34 @@ func (c *Client) Connect() error {
 	opts.SetOrderMatters(false)
 	opts.SetResumeSubs(true)
 
-	// Set connection callbacks
+	// Callbacks
 	opts.SetOnConnectHandler(c.onConnect)
 	opts.SetConnectionLostHandler(c.onConnectionLost)
 	opts.SetDefaultPublishHandler(c.onMessageReceived)
 
 	c.client = mqtt.NewClient(opts)
 
-	// Connect to broker
+	logger.Printf("Attempting MQTT connection to %s...", brokerURL)
 	token := c.client.Connect()
-	if token.Wait() && token.Error() != nil {
-		return fmt.Errorf("failed to connect to MQTT broker: %v", token.Error())
+
+	// Wait for connection
+	if token.Wait() {
+		if token.Error() != nil {
+			logger.Errorf("MQTT connection failed: %v", token.Error())
+			return fmt.Errorf("failed to connect to MQTT broker: %v", token.Error())
+		}
+		logger.Printf("Successfully connected to MQTT broker: %s", brokerURL)
+	} else {
+		logger.Errorf("MQTT connection timed out after 10 seconds")
+		return fmt.Errorf("MQTT connection timed out")
 	}
 
-	logger.Printf("Successfully connected to MQTT broker")
 	return nil
 }
 
 // onConnect handles successful connection to MQTT broker
 func (c *Client) onConnect(client mqtt.Client) {
-	logger.Printf("Connected to MQTT broker, subscribing to topic: %s", c.topic)
+	logger.Printf("MQTT onConnect callback triggered - Connected to MQTT broker, subscribing to topic: %s", c.topic)
 
 	// Subscribe to the groups topic
 	token := client.Subscribe(c.topic, 1, nil)
@@ -113,20 +137,20 @@ func (c *Client) onConnect(client mqtt.Client) {
 // onConnectionLost handles connection loss
 func (c *Client) onConnectionLost(_ mqtt.Client, err error) {
 	logger.Errorf("MQTT connection lost: %v", err)
+	logger.Printf("MQTT will attempt to reconnect automatically (interval: %v, max attempts: %d)", c.reconnectInterval, c.maxReconnectAttempts)
 }
 
 // onMessageReceived handles incoming MQTT messages
 func (c *Client) onMessageReceived(_ mqtt.Client, msg mqtt.Message) {
 	logger.Printf("Received MQTT message on topic %s: %s", msg.Topic(), string(msg.Payload()))
 
-	var groupUpdate GroupUpdate
-	if err := json.Unmarshal(msg.Payload(), &groupUpdate); err != nil {
+	var groups []string
+	if err := json.Unmarshal(msg.Payload(), &groups); err != nil {
 		logger.Errorf("Failed to parse MQTT message: %v", err)
 		return
 	}
 
-	// Update allowed groups
-	c.updateAllowedGroups(groupUpdate.AllowedGroups)
+	c.updateAllowedGroups(groups)
 }
 
 // updateAllowedGroups updates the allowed groups and calls the callback
@@ -165,4 +189,15 @@ func (c *Client) Disconnect() {
 // IsConnected returns true if connected to MQTT broker
 func (c *Client) IsConnected() bool {
 	return c.client != nil && c.client.IsConnected()
+}
+
+// GetConnectionStatus returns detailed connection status information
+func (c *Client) GetConnectionStatus() string {
+	if c.client == nil {
+		return "MQTT client not initialized"
+	}
+	if c.client.IsConnected() {
+		return "Connected"
+	}
+	return "Disconnected"
 }
