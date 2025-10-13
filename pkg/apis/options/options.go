@@ -173,7 +173,7 @@ func NewFlagSet() *pflag.FlagSet {
 	flagSet.String("mqtt-username", "", "MQTT username for dynamic group loading")
 	flagSet.String("mqtt-password", "", "MQTT password for dynamic group loading")
 	flagSet.String("mqtt-broker", "", "MQTT broker address for dynamic group loading")
-	flagSet.Int("mqtt-port", 1883, "MQTT broker port for dynamic group loading")
+	flagSet.Int("mqtt-port", 8084, "MQTT broker port for dynamic group loading")
 	flagSet.String("mqtt-allowed-groups-topic", "", "MQTT topic for receiving allowed groups updates")
 
 	flagSet.AddFlagSet(cookieFlagSet())

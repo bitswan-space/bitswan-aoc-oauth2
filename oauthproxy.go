@@ -302,10 +302,18 @@ func (p *OAuthProxy) Start() error {
 
 	// Start MQTT client if configured
 	if p.mqttClient != nil {
+		logger.Printf("Starting MQTT client...")
 		if err := p.mqttClient.Connect(); err != nil {
-			logger.Printf("Warning: Failed to connect to MQTT broker: %v", err)
+			logger.Errorf("Failed to connect to MQTT broker: %v", err)
+			logger.Printf("MQTT client status: %s", p.mqttClient.GetConnectionStatus())
+			// Continue without MQTT - this is not a fatal error
+		} else {
+			logger.Printf("MQTT client started successfully, status: %s", p.mqttClient.GetConnectionStatus())
 		}
-		defer p.mqttClient.Disconnect()
+		defer func() {
+			logger.Printf("Shutting down MQTT client...")
+			p.mqttClient.Disconnect()
+		}()
 	}
 
 	// Observe signals in background goroutine.
@@ -1371,4 +1379,3 @@ func LoggingCSRFCookiesInOAuthCallback(req *http.Request, cookieName string) {
 
 	logger.Println(req, logger.AuthFailure, "Cookies were found in OAuth callback, but none was a CSRF cookie.")
 }
-
