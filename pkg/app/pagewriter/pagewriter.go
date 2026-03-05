@@ -77,6 +77,7 @@ func NewWriter(opts Opts) (Writer, error) {
 		footer:      opts.Footer,
 		version:     opts.Version,
 		debug:       opts.Debug,
+		logoData:    logoData,
 	}
 
 	signInPage := &signInPageWriter{

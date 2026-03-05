@@ -17,8 +17,12 @@ import (
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/logger"
 )
 
-//go:embed default_logo.svg
-var defaultLogoData string
+//go:embed bitswan-logo-full.png
+var defaultLogoBytes []byte
+
+var defaultLogoData = func() string {
+	return encodeImg(defaultLogoBytes, "png")
+}()
 
 // signInPageWriter is used to render sign-in pages.
 type signInPageWriter struct {
