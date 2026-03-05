@@ -1,0 +1,294 @@
+{{define "error.html"}}
+<!DOCTYPE html>
+<html lang="en" charset="utf-8">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>{{.StatusCode}} {{.Title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg-deep: #08090c;
+    --bg-card: #111318;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.1);
+    --text-primary: #e8eaed;
+    --text-secondary: #7a808f;
+    --text-tertiary: #4a5060;
+    --accent: #e2874b;
+    --accent-glow: rgba(226,135,75,0.15);
+    --accent-dim: #c06a33;
+    --radius: 14px;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    padding: 1.5rem;
+    overflow: hidden;
+  }
+
+  /* Dot grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ambient glow behind card */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    animation: glowIn 1.2s ease 0.3s forwards;
+  }
+
+  @keyframes glowIn {
+    to { opacity: 1; }
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes countIn {
+    from {
+      opacity: 0;
+      transform: scale(0.8);
+      filter: blur(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0);
+    }
+  }
+
+  .error-container {
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .error-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 2.75rem 2.25rem 2.25rem;
+    margin-bottom: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Top accent line */
+  .error-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    border-radius: 2px;
+  }
+
+  .logo {
+    margin-bottom: 2rem;
+    animation: fadeUp 0.5s ease 0.15s both;
+  }
+
+  .logo a {
+    display: inline-block;
+    transition: opacity 0.2s;
+  }
+
+  .logo a:hover {
+    opacity: 0.8;
+  }
+
+  .logo img {
+    height: 32px;
+    width: auto;
+    filter: invert(1);
+    opacity: 0.9;
+  }
+
+  .status-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 5.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    letter-spacing: -3px;
+    animation: countIn 0.5s ease 0.25s both;
+    text-shadow: 0 0 40px var(--accent-glow);
+  }
+
+  .error-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.01em;
+    animation: fadeUp 0.5s ease 0.35s both;
+  }
+
+  .error-message {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: 1.25rem;
+    animation: fadeUp 0.5s ease 0.4s both;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+    animation: fadeUp 0.5s ease 0.5s both;
+  }
+
+  .btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1.25rem;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 12px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-dim);
+    box-shadow: 0 4px 20px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.07);
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+  }
+
+  .footer-text {
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    animation: fadeUp 0.5s ease 0.55s both;
+  }
+
+  .footer-text a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-text a:hover {
+    color: var(--text-primary);
+  }
+
+  @media (max-width: 480px) {
+    .error-card {
+      padding: 2rem 1.5rem 1.75rem;
+    }
+    .status-code {
+      font-size: 4rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="error-container">
+  <div class="error-card">
+    <div class="logo">
+      <a href="https://www.bitswan.ai/">{{.LogoData}}</a>
+    </div>
+
+    <div class="status-code">{{.StatusCode}}</div>
+    <h1 class="error-title">{{.Title}}</h1>
+
+    {{ if .Message }}
+    <p class="error-message">{{.Message}}</p>
+    {{ end }}
+
+    {{ if .Redirect }}
+    <div class="actions">
+      <form method="GET" action="{{.Redirect}}" style="flex:1;display:flex;">
+        <button type="submit" class="btn btn-secondary" style="flex:1;">Go back</button>
+      </form>
+      <form method="GET" action="{{.ProxyPrefix}}/sign_in" style="flex:1;display:flex;">
+        <input type="hidden" name="rd" value="{{.Redirect}}">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Sign in</button>
+      </form>
+    </div>
+    {{ end }}
+  </div>
+
+  <div class="footer-text">
+    {{ if eq .Footer "-" }}
+    {{ else if eq .Footer ""}}
+    <p>Secured with <a href="https://github.com/oauth2-proxy/oauth2-proxy#oauth2_proxy">OAuth2 Proxy</a> version {{.Version}}</p>
+    {{ else }}
+    <p>{{.Footer}}</p>
+    {{ end }}
+  </div>
+</div>
+
+</body>
+</html>
+{{end}}

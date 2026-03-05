@@ -18,7 +18,7 @@ const (
 	signInTemplateName = "sign_in.html"
 )
 
-//go:embed error.html
+//go:embed error_bitswan.html
 var defaultErrorTemplate string
 
 //go:embed sign_in.html

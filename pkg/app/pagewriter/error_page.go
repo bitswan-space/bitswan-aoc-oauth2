@@ -36,6 +36,9 @@ type errorPageWriter struct {
 	// debug determines whether errors pages should be rendered with detailed
 	// errors.
 	debug bool
+
+	// logoData is the logo to render in the error page template.
+	logoData string
 }
 
 // ErrorPageOpts bundles up all the content needed to write the Error Page
@@ -67,6 +70,7 @@ func (e *errorPageWriter) WriteErrorPage(rw http.ResponseWriter, opts ErrorPageO
 		RequestID   string
 		Footer      template.HTML
 		Version     string
+		LogoData    template.HTML
 	}{
 		Title:       http.StatusText(opts.Status),
 		Message:     e.getMessage(opts.Status, opts.AppError, opts.Messages...),
@@ -74,8 +78,9 @@ func (e *errorPageWriter) WriteErrorPage(rw http.ResponseWriter, opts ErrorPageO
 		StatusCode:  opts.Status,
 		Redirect:    opts.RedirectURL,
 		RequestID:   opts.RequestID,
-		Footer:      template.HTML(e.footer), // #nosec G203 -- We allow unescaped template.HTML since it is user configured options
+		Footer:      template.HTML(e.footer),   // #nosec G203 -- We allow unescaped template.HTML since it is user configured options
 		Version:     e.version,
+		LogoData:    template.HTML(e.logoData), // #nosec G203 -- We allow unescaped template.HTML since it is user configured options
 	}
 
 	if err := e.template.Execute(rw, data); err != nil {
