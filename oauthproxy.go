@@ -801,40 +801,74 @@ func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	p.backendLogout(rw, req)
+	if browserRedirect := p.backendLogout(rw, req, redirect); browserRedirect != "" {
+		http.Redirect(rw, req, browserRedirect, http.StatusFound)
+		return
+	}
 
 	http.Redirect(rw, req, redirect, http.StatusFound)
 }
 
-func (p *OAuthProxy) backendLogout(rw http.ResponseWriter, req *http.Request) {
+// backendLogout attempts to log out from the identity provider.
+// If a valid session exists, it calls the backend logout URL server-side.
+// If no session exists (e.g. login never completed), it returns a browser
+// redirect URL to the provider's logout endpoint so the browser session
+// gets cleared too. Returns empty string if no browser redirect is needed.
+func (p *OAuthProxy) backendLogout(rw http.ResponseWriter, req *http.Request, postLogoutRedirect string) string {
+	// Make postLogoutRedirect absolute if it's relative, using the request's host
+	if postLogoutRedirect != "" && !strings.HasPrefix(postLogoutRedirect, "http") {
+		scheme := "https"
+		if req.TLS == nil {
+			if fwdProto := req.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+				scheme = fwdProto
+			}
+		}
+		postLogoutRedirect = scheme + "://" + req.Host + postLogoutRedirect
+	}
+	providerData := p.provider.Data()
+
 	session, err := p.getAuthenticatedSession(rw, req)
 	if err != nil {
 		logger.Errorf("error getting authenticated session during backend logout: %v", err)
-		return
 	}
 
-	if session == nil {
-		return
+	if session != nil && providerData.BackendLogoutURL != "" {
+		backendLogoutURL := strings.ReplaceAll(providerData.BackendLogoutURL, "{id_token}", session.IDToken)
+		// security exception because URL is dynamic ({id_token} replacement) but
+		// base is not end-user provided but comes from configuration somewhat secure
+		resp, err := http.Get(backendLogoutURL) // #nosec G107
+		if err != nil {
+			logger.Errorf("error while calling backend logout: %v", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				logger.Errorf("error while calling backend logout url, returned error code %v", resp.StatusCode)
+			}
+		}
+		return ""
 	}
 
-	providerData := p.provider.Data()
-	if providerData.BackendLogoutURL == "" {
-		return
+	// No valid session — build a browser redirect to the provider's logout endpoint
+	// so the provider's browser session cookie gets cleared
+	if providerData.BackendLogoutURL != "" && providerData.LoginURL != nil {
+		// Derive the logout endpoint from the login URL
+		// e.g. .../protocol/openid-connect/auth -> .../protocol/openid-connect/logout
+		loginPath := providerData.LoginURL.Path
+		if idx := strings.LastIndex(loginPath, "/"); idx >= 0 {
+			logoutPath := loginPath[:idx] + "/logout"
+			logoutURL := *providerData.LoginURL
+			logoutURL.Path = logoutPath
+			q := url.Values{}
+			q.Set("client_id", providerData.ClientID)
+			q.Set("post_logout_redirect_uri", postLogoutRedirect)
+			logoutURL.RawQuery = q.Encode()
+			logoutURL.Fragment = ""
+			logger.Printf("No session found, redirecting browser to provider logout: %s", logoutURL.String())
+			return logoutURL.String()
+		}
 	}
 
-	backendLogoutURL := strings.ReplaceAll(providerData.BackendLogoutURL, "{id_token}", session.IDToken)
-	// security exception because URL is dynamic ({id_token} replacement) but
-	// base is not end-user provided but comes from configuration somewhat secure
-	resp, err := http.Get(backendLogoutURL) // #nosec G107
-	if err != nil {
-		logger.Errorf("error while calling backend logout: %v", err)
-		return
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		logger.Errorf("error while calling backend logout url, returned error code %v", resp.StatusCode)
-	}
+	return ""
 }
 
 // OAuthStart starts the OAuth2 authentication flow

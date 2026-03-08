@@ -225,10 +225,36 @@
     transform: translateY(-1px);
   }
 
+  .sign-out-link {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.5rem;
+    z-index: 10;
+    animation: fadeUp 0.4s ease 0.3s both;
+  }
+
+  .sign-out-link button {
+    background: none;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: rgba(248,113,113,0.6);
+    cursor: pointer;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .sign-out-link button:hover {
+    color: #f87171;
+    background: rgba(248,113,113,0.08);
+  }
+
   .footer-text {
     font-size: 0.7rem;
     color: var(--text-tertiary);
-    animation: fadeUp 0.5s ease 0.55s both;
+    animation: fadeUp 0.5s ease 0.6s both;
   }
 
   .footer-text a {
@@ -253,6 +279,15 @@
 </head>
 <body>
 
+<div class="sign-out-link">
+  <form method="GET" action="{{.ProxyPrefix}}/sign_out">
+    {{ if .Redirect }}
+    <input type="hidden" name="rd" value="{{.Redirect}}">
+    {{ end }}
+    <button type="submit">Sign out</button>
+  </form>
+</div>
+
 <div class="error-container">
   <div class="error-card">
     <div class="logo">
@@ -266,8 +301,8 @@
     <p class="error-message">{{.Message}}</p>
     {{ end }}
 
-    {{ if .Redirect }}
     <div class="actions">
+      {{ if .Redirect }}
       <form method="GET" action="{{.Redirect}}" style="flex:1;display:flex;">
         <button type="submit" class="btn btn-secondary" style="flex:1;">Go back</button>
       </form>
@@ -275,8 +310,9 @@
         <input type="hidden" name="rd" value="{{.Redirect}}">
         <button type="submit" class="btn btn-primary" style="flex:1;">Sign in</button>
       </form>
+      {{ end }}
     </div>
-    {{ end }}
+
   </div>
 
   <div class="footer-text">
